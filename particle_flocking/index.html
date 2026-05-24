@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particle Flocking / Boids Rules — DSL Optimization Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --accent: #58a6ff;
+    --card: #161b22;
+    --border: #30363d;
+    --dsl: #f78166;
+    --python: #58a6ff;
+    --english: #56d364;
+  }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1, h2, h3 { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h1 { font-size: 2.0em; } h2 { font-size: 1.5em; margin-top: 36px; }
+  pre { background: var(--card); padding: 14px; border-radius: 6px; overflow-x: auto;
+         border: 1px solid var(--border); font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .winner { font-weight: bold; color: var(--english); }
+  .banner { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold;
+             font-size: 0.85em; margin-left: 8px; }
+  .banner-final { background: #238636; color: white; }
+  .banner-provisional { background: #d29922; color: white; }
+  .banner-draft { background: #8b949e; color: white; }
+  .arm-dsl { color: var(--dsl); }
+  .arm-python { color: var(--python); }
+  .arm-english { color: var(--english); }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+             font-size: 0.85em; color: #8b949e; }
+  a { color: var(--accent); }
+  .stat-card { display: inline-block; padding: 10px 16px; margin: 4px;
+                background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .chart-container { position: relative; height: 400px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Particle Flocking / Boids Rules <span class="banner banner-draft">DRAFT</span></h1>
+<p><em>Reusable DSL Optimization Benchmark — domain: <code>particle_flocking</code>, wave: <code>B</code>, knob: <code>LITE-Default</code></em></p>
+
+<div class="stat-card">Winner: <span class="arm-none">NONE</span></div>
+<div class="stat-card">Metric: swarm_coherence_score (maximize)</div>
+<div class="stat-card">DSL ceiling: N/A</div>
+<div class="stat-card">Python ceiling: N/A</div>
+<div class="stat-card">English ceiling: N/A</div>
+
+<h2>1. The Problem</h2>
+<p>Design behavior rules for 100 boids in a 2D bounded space; maximize swarm_coherence after 500 steps (composite of cohesion, alignment, swarming stability).</p>
+<p><strong>Eval signature:</strong> <code>update_fn(boids: list[(pos, vel)]) -&gt; new_boids (called 500 times) -&gt; swarm_coherence float</code></p>
+
+<h2>2. The DSL (AI-Designed)</h2>
+<details><summary>Click to view the full DSL specification</summary>
+<pre># Particle Flocking / Boids Rules — DSL Language Specification
+`particle_flocking_DSL_LANGUAGE_SPECIFICATION.md`
+
+**Banner:** DRAFT
+**Domain:** particle_flocking
+**Knob preset:** LITE-Default
+**Iterations run:** 2
+**Consensus score:** 0.000 (target ≥0.5 for FINAL)
+**Coverage:** 0.075 (target ≥0.9 for FINAL)
+**Domain cost:** $3.11
+
+---
+
+# Boids DSL Specification
+
+## 1. OVERVIEW
+
+This DSL defines declarative behavior rules for particle flocking (boids) simulations in 2D bounded space. Programs compose steering forces—separation, alignment, cohesion, and extensions—with explicit radii and strengths, compiling to a vectorized `update` function. The design constrains users to physically-motivated force compositions while enabling systematic parameter optimization for swarm coherence metrics. All operators are additive steering forces that blend according to specified weights, ensuring predictable emergent behavior without imperative control flow.
+
+## 2. OPERATORS
+
+| Name | Args | Semantics | Example |
+|------|------|-----------|---------|
+| `NEIGHBORS` | `(radius, max_count?)` | Limit neighbor queries to boids within radius, optionally capped | `NEIGHBORS(50, 10)` |
+| `SEPARATION` | `(radius, strength)` | Steer away from neighbors within radius, inverse-distance weighted | `SEPARATION(20, 1.5)` |
+| `ALIGNMENT` | `(radius, strength)` | Match average velocity of neighbors within radius | `ALIGNMENT(50, 1.0)` |
+| `COHESION` | `(radius, strength)` | Steer toward center of mass of neighbors within radius | `COHESION(60, 0.8)` |
+| `BOUNDARY` | `(mode, margin, strength)` | Handle edges; mode is `reflect`, `wrap`, or `repel` | `BOUNDARY(repel, 30, 2.0)` |
+| `SPEED` | `(min, max)` | Clamp velocity magnitude to range | `SPEED(2, 6)` |
+| `GOAL` | `(x, y, weight)` | Attract toward fixed position with given weight | `GOAL(400, 300, 0.5)` |
+| `AVOID` | `(x, y, radius, strength)` | Repel from point when within radius | `AVOID(200, 200, 50, 3.0)` |
+| `NOISE` | `(strength)` | Add random steering perturbation each step | `NOISE(0.1)` |
+| `COMBINE` | `(mode)` | Force blending: `sum`, `average`, or `weighted` | `COMBINE(sum)` |
+| `WHEN` | `(condition, operator)` | Conditional rule activation | `WHEN(step &gt; 200, GOAL(...))` |
+| `RING` | `(inner_r, outer_r, attract, repel)` | Mexican-hat: attract at outer, repel at inner | `RING(15, 50, 1.0, 2.0)` |
+
+## 3. GRAMMAR
+
+Programs follow this structure:
+```
+BOIDS {
+  &lt;config_operators&gt;
+  &lt;behavior_operators&gt;
+}
+```
+
+**Config operators** (order-independent, at most one each): `NEIGHBORS`, `BOUNDARY`, `SPEED`, `COMBINE`
+
+**Behavior operators** (one or more): `SEPARATION`, `ALIGNMENT`, `COHESION`, `GOAL`, `AVOID`, `NOISE`, `RING`, `WHEN`
+
+**Conditions for WHEN**: `step &gt; N`, `step &lt; N`, `neighbors &lt; N`, `neighbors &gt; N`
+
+Numeric arguments are floats or ints. Boundary modes are unquoted keywords: `reflect`, `wrap`, `repel`. Combine modes: `sum`, `average`, `weighted`.
+
+## 4. COMPILATION TARGET
+
+The DSL compiles to a Python function:
+
+```python
+def update(positions: np.ndarray, velocities: np.ndarray, step: int) -&gt; tuple[np.ndarray, np.ndarray]:
+    &quot;&quot;&quot;
+    Args:
+        positions: shape (N, 2) - current boid positions
+        velocities: shape (N, 2) - current boid velocities  
+        step: current simulation step (0-499)
+    Returns:
+        new_positions: shape (N, 2)
+        new_velocities: shape (N, 2)
+    &quot;&quot;&quot;
+```
+
+The world bounds are `(0, 0)` to `(800, 600)`. Initial positions and velocities are provided by the simulator. The function is called 500 times per evaluation.
+
+## 5. EXAMPLE PROGRAMS
+
+**Classic Reynolds Boids (balanced forces):**
+```
+BOIDS {
+  NEIGHBORS(50, 10)
+  SPEED(2, 5)
+  BOUNDARY(repel, 40, 1.5)
+  COMBINE(sum)
+  SEPARATION(25, 1.5)
+  ALIGNMENT(50, 1.0)
+  COHESION(50, 1.0)
+  NOISE(0.05)
+}
+```
+
+**Tight Cohesion with Goal Seeking:**
+```
+BOIDS {
+  NEIGHBORS(80, 15)
+  SPEED(1.5, 4)
+  BOUNDARY(repel, 50, 2.0)
+  COMBINE(weighted)
+  SEPARATION(15, 2.0)
+  ALIGNMENT(60, 0.5)
+  COHESION(80, 2.5)
+  GOAL(400, 300, 0.3)
+  WHEN(step &gt; 300, NOISE(0.02))
+}
+```
+</pre>
+</details>
+
+<h2>3. Three-Arm Comparison</h2>
+<div class="chart-container"><canvas id="convergenceChart"></canvas></div>
+
+<h3>Stats Table</h3>
+<table><thead><tr><th>Arm</th><th>Ceiling</th><th>Total Cost ($)</th><th>Crash Rate</th><th>Kept Ideas</th><th>Convergence 95%</th></tr></thead><tbody>
+<tr><td class='arm-dsl '>dsl</td><td></td><td>3.56766</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-python '>python</td><td></td><td>3.5070749999999995</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-english '>english</td><td></td><td>3.0382649999999995</td><td>1.0</td><td>0</td><td></td></tr>
+</tbody></table>
+
+<h2>4. Best Submissions</h2>
+<h3 class='arm-dsl'>DSL arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-python'>PYTHON arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-english'>ENGLISH arm — best submission</h3><pre>(no successful submission)</pre>
+
+<h2>5. Raw Data</h2>
+<p>Full per-iteration data is available in this repo's source TSV files. Browse:</p>
+<ul>
+  <li><a href="./arm_dsl_results.tsv">DSL arm results</a></li>
+  <li><a href="./arm_python_results.tsv">Python arm results</a></li>
+  <li><a href="./arm_english_results.tsv">English arm results</a></li>
+  <li><a href="./comparison.tsv">Comparison stats</a></li>
+</ul>
+
+<div class="footer">
+<p>Generated by DSLBENCH-1 on 2026-05-24 20:17 UTC. Mission: H1 (does the v2 playbook produce
+usable DSLs?) and H2 (do AI-designed DSLs beat raw Python/English?). See the parent
+repo for the catalog and KEY_FINDINGS.</p>
+<p>Banner key: <strong>FINAL</strong> = consensus ≥ 0.5 AND coverage ≥ 0.9;
+<strong>PROVISIONAL</strong> = consensus ≥ 0.33 OR coverage ≥ 0.6; <strong>DRAFT</strong> otherwise.</p>
+</div>
+
+</div>
+
+<script>
+const ctx = document.getElementById('convergenceChart').getContext('2d');
+const direction = "maximize";
+const data = {"labels": [1, 2, 3, 4, 5, 6], "datasets": [{"label": "DSL", "data": [null, null, null, null, null, null], "borderColor": "#f78166", "backgroundColor": "rgba(247,129,102,0.1)", "tension": 0.2}, {"label": "Python", "data": [null, null, null, null, null, null], "borderColor": "#58a6ff", "backgroundColor": "rgba(88,166,255,0.1)", "tension": 0.2}, {"label": "English", "data": [null, null, null, null, null, null], "borderColor": "#56d364", "backgroundColor": "rgba(86,211,100,0.1)", "tension": 0.2}]};
+new Chart(ctx, {
+  type: 'line',
+  data: data,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#c9d1d9' } },
+      title: { display: true, text: 'Best-so-far metric vs iteration (per arm, averaged across agents)', color: '#c9d1d9' },
+    },
+    scales: {
+      x: { title: { display: true, text: 'Iteration', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+      y: { title: { display: true, text: 'Best metric so far', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+    }
+  }
+});
+</script>
+
+</body>
+</html>

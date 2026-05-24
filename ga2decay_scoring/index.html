@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GA2Decay Scoring Function — DSL Optimization Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --accent: #58a6ff;
+    --card: #161b22;
+    --border: #30363d;
+    --dsl: #f78166;
+    --python: #58a6ff;
+    --english: #56d364;
+  }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1, h2, h3 { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h1 { font-size: 2.0em; } h2 { font-size: 1.5em; margin-top: 36px; }
+  pre { background: var(--card); padding: 14px; border-radius: 6px; overflow-x: auto;
+         border: 1px solid var(--border); font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .winner { font-weight: bold; color: var(--english); }
+  .banner { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold;
+             font-size: 0.85em; margin-left: 8px; }
+  .banner-final { background: #238636; color: white; }
+  .banner-provisional { background: #d29922; color: white; }
+  .banner-draft { background: #8b949e; color: white; }
+  .arm-dsl { color: var(--dsl); }
+  .arm-python { color: var(--python); }
+  .arm-english { color: var(--english); }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+             font-size: 0.85em; color: #8b949e; }
+  a { color: var(--accent); }
+  .stat-card { display: inline-block; padding: 10px 16px; margin: 4px;
+                background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .chart-container { position: relative; height: 400px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>GA2Decay Scoring Function <span class="banner banner-draft">DRAFT</span></h1>
+<p><em>Reusable DSL Optimization Benchmark — domain: <code>ga2decay_scoring</code>, wave: <code>B</code>, knob: <code>FULL+</code></em></p>
+
+<div class="stat-card">Winner: <span class="arm-python">PYTHON</span></div>
+<div class="stat-card">Metric: correlation_with_reference (maximize)</div>
+<div class="stat-card">DSL ceiling: N/A</div>
+<div class="stat-card">Python ceiling: 0.046458</div>
+<div class="stat-card">English ceiling: -0.0</div>
+
+<h2>1. The Problem</h2>
+<p>Design a scoring function that produces per-neuron Help/Hurt scores from a batch of 100 (ordinal, signal) examples; the scoring function should weight examples by exponential decay (newer examples weighted higher); target ≥0.95 Pearson correlation with reference.</p>
+<p><strong>Eval signature:</strong> <code>score_fn(examples: list[(ordinal, signal)], n_neurons) -&gt; per_neuron_scores; metric = Pearson(score_fn output, reference output)</code></p>
+
+<h2>2. The DSL (AI-Designed)</h2>
+<details><summary>Click to view the full DSL specification</summary>
+<pre># GA2Decay Scoring Function — DSL Language Specification
+`ga2decay_scoring_DSL_LANGUAGE_SPECIFICATION.md`
+
+**Banner:** DRAFT
+**Domain:** ga2decay_scoring
+**Knob preset:** FULL+
+**Iterations run:** 2
+**Consensus score:** 0.000 (target ≥0.5 for FINAL)
+**Coverage:** 0.035 (target ≥0.9 for FINAL)
+**Domain cost:** $3.79
+
+---
+
+# GA2Decay Scoring DSL Specification
+
+## 1. OVERVIEW
+
+The GA2Decay DSL defines scoring functions that compute per-neuron Help/Hurt scores from batches of (ordinal, signal) examples. Programs follow a constrained **weight→accumulate→combine→normalize** pipeline pattern, where newer examples receive higher weights via exponential decay. The DSL prevents arbitrary computations while enabling systematic exploration of decay rates, aggregation strategies, and combination modes to achieve ≥0.95 Pearson correlation with reference implementations.
+
+## 2. OPERATORS
+
+| Name | Args | Semantics | Example |
+|------|------|-----------|---------|
+| `DECAY` | `(type, rate)` | Returns weight function: `exp`→`e^(-rate*age)`, `linear`→`max(0,1-rate*age)`, `none`→`1.0` | `DECAY(exp, 0.03)` |
+| `WEIGHT` | `(ordinal, decay_fn)` | Computes example weight from ordinal (age = max_ord - ordinal) | `WEIGHT(ord, decay)` |
+| `HELP` | `(signal, weight)` | Returns `weight * max(0, signal)` per neuron | `HELP(sig, w)` |
+| `HURT` | `(signal, weight)` | Returns `weight * max(0, -signal)` per neuron | `HURT(sig, w)` |
+| `AGGREGATE` | `(values, op)` | Reduces across examples: `sum`, `mean`, `max` | `AGGREGATE(help, sum)` |
+| `COMBINE` | `(help, hurt, mode)` | Merges scores: `diff`→`h-u`, `ratio`→`h/(h+u+ε)` | `COMBINE(h, u, diff)` |
+| `NORMALIZE` | `(scores, method)` | Scales output: `none`, `zscore`, `minmax` | `NORMALIZE(s, none)` |
+
+## 3. GRAMMAR
+
+Programs follow this structure:
+```
+SCORE {
+  decay  = DECAY(type, rate)
+  FOR (ord, sig) IN batch:
+    w = WEIGHT(ord, decay)
+    help += HELP(sig, w)
+    hurt += HURT(sig, w)
+  h = AGGREGATE(help, op)
+  u = AGGREGATE(hurt, op)
+  result = NORMALIZE(COMBINE(h, u, mode), method)
+}
+```
+
+**Parameter domains:**
+- `type` ∈ {`exp`, `linear`, `none`}
+- `rate` ∈ [0.0, 0.2] (float)
+- `op` ∈ {`sum`, `mean`, `max`}
+- `mode` ∈ {`diff`, `ratio`}
+- `method` ∈ {`none`, `zscore`, `minmax`}
+
+## 4. COMPILATION TARGET
+
+The DSL compiles to a Python function with signature:
+
+```python
+def score(ordinals: np.ndarray, signals: np.ndarray) -&gt; np.ndarray:
+    &quot;&quot;&quot;
+    Args:
+        ordinals: shape (batch_size,) - example indices (0 = oldest)
+        signals: shape (batch_size, n_neurons) - per-neuron signals
+    Returns:
+        scores: shape (n_neurons,) - Help/Hurt score per neuron
+    &quot;&quot;&quot;
+```
+
+The function must be vectorized (NumPy) and handle batch_size=100. Age is computed as `max(ordinals) - ordinal` so newer examples (higher ordinal) have lower age and higher weight.
+
+## 5. EXAMPLE PROGRAMS
+
+**Strategy A: Exponential Decay (Canonical)**
+```
+SCORE {
+  decay  = DECAY(exp, 0.03)
+  FOR (ord, sig) IN batch:
+    w = WEIGHT(ord, decay)
+    help += HELP(sig, w)
+    hurt += HURT(sig, w)
+  h = AGGREGATE(help, sum)
+  u = AGGREGATE(hurt, sum)
+  result = NORMALIZE(COMBINE(h, u, diff), none)
+}
+```
+
+**Strategy B: Linear Decay with Normalization**
+```
+SCORE {
+  decay  = DECAY(linear, 0.01)
+  FOR (ord, sig) IN batch:
+    w = WEIGHT(ord, decay)
+    help += HELP(sig, w)
+    hurt += HURT(sig, w)
+  h = AGGREGATE(help, sum)
+  u = AGGREGATE(hurt, sum)
+  result = NORMALIZE(COMBINE(h, u, ratio), zscore)
+}
+```
+</pre>
+</details>
+
+<h2>3. Three-Arm Comparison</h2>
+<div class="chart-container"><canvas id="convergenceChart"></canvas></div>
+
+<h3>Stats Table</h3>
+<table><thead><tr><th>Arm</th><th>Ceiling</th><th>Total Cost ($)</th><th>Crash Rate</th><th>Kept Ideas</th><th>Convergence 95%</th></tr></thead><tbody>
+<tr><td class='arm-dsl '>dsl</td><td></td><td>2.6085000000000007</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-python winner'>python</td><td>0.046458</td><td>2.37966</td><td>0.0333</td><td>10</td><td>17</td></tr>
+<tr><td class='arm-english '>english</td><td>-0.0</td><td>1.74897</td><td>0.7</td><td>8</td><td>1</td></tr>
+</tbody></table>
+
+<h2>4. Best Submissions</h2>
+<h3 class='arm-dsl'>DSL arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-python'>PYTHON arm — best submission</h3><pre>(code not captured)</pre>
+<h3 class='arm-english'>ENGLISH arm — best submission</h3><pre>(code not captured)</pre>
+
+<h2>5. Raw Data</h2>
+<p>Full per-iteration data is available in this repo's source TSV files. Browse:</p>
+<ul>
+  <li><a href="./arm_dsl_results.tsv">DSL arm results</a></li>
+  <li><a href="./arm_python_results.tsv">Python arm results</a></li>
+  <li><a href="./arm_english_results.tsv">English arm results</a></li>
+  <li><a href="./comparison.tsv">Comparison stats</a></li>
+</ul>
+
+<div class="footer">
+<p>Generated by DSLBENCH-1 on 2026-05-24 20:17 UTC. Mission: H1 (does the v2 playbook produce
+usable DSLs?) and H2 (do AI-designed DSLs beat raw Python/English?). See the parent
+repo for the catalog and KEY_FINDINGS.</p>
+<p>Banner key: <strong>FINAL</strong> = consensus ≥ 0.5 AND coverage ≥ 0.9;
+<strong>PROVISIONAL</strong> = consensus ≥ 0.33 OR coverage ≥ 0.6; <strong>DRAFT</strong> otherwise.</p>
+</div>
+
+</div>
+
+<script>
+const ctx = document.getElementById('convergenceChart').getContext('2d');
+const direction = "maximize";
+const data = {"labels": [1, 2, 3, 4, 5, 6], "datasets": [{"label": "DSL", "data": [null, null, null, null, null, null], "borderColor": "#f78166", "backgroundColor": "rgba(247,129,102,0.1)", "tension": 0.2}, {"label": "Python", "data": [0.0, 0.0, 0.0, 0.0, 0.009292, 0.009292], "borderColor": "#58a6ff", "backgroundColor": "rgba(88,166,255,0.1)", "tension": 0.2}, {"label": "English", "data": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "borderColor": "#56d364", "backgroundColor": "rgba(86,211,100,0.1)", "tension": 0.2}]};
+new Chart(ctx, {
+  type: 'line',
+  data: data,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#c9d1d9' } },
+      title: { display: true, text: 'Best-so-far metric vs iteration (per arm, averaged across agents)', color: '#c9d1d9' },
+    },
+    scales: {
+      x: { title: { display: true, text: 'Iteration', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+      y: { title: { display: true, text: 'Best metric so far', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+    }
+  }
+});
+</script>
+
+</body>
+</html>

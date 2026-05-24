@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L-System Grammar Design — DSL Optimization Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --accent: #58a6ff;
+    --card: #161b22;
+    --border: #30363d;
+    --dsl: #f78166;
+    --python: #58a6ff;
+    --english: #56d364;
+  }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1, h2, h3 { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h1 { font-size: 2.0em; } h2 { font-size: 1.5em; margin-top: 36px; }
+  pre { background: var(--card); padding: 14px; border-radius: 6px; overflow-x: auto;
+         border: 1px solid var(--border); font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .winner { font-weight: bold; color: var(--english); }
+  .banner { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold;
+             font-size: 0.85em; margin-left: 8px; }
+  .banner-final { background: #238636; color: white; }
+  .banner-provisional { background: #d29922; color: white; }
+  .banner-draft { background: #8b949e; color: white; }
+  .arm-dsl { color: var(--dsl); }
+  .arm-python { color: var(--python); }
+  .arm-english { color: var(--english); }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+             font-size: 0.85em; color: #8b949e; }
+  a { color: var(--accent); }
+  .stat-card { display: inline-block; padding: 10px 16px; margin: 4px;
+                background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .chart-container { position: relative; height: 400px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>L-System Grammar Design <span class="banner banner-draft">DRAFT</span></h1>
+<p><em>Reusable DSL Optimization Benchmark — domain: <code>l_system</code>, wave: <code>A</code>, knob: <code>LITE</code></em></p>
+
+<div class="stat-card">Winner: <span class="arm-dsl">DSL</span></div>
+<div class="stat-card">Metric: visual_complexity_score (maximize)</div>
+<div class="stat-card">DSL ceiling: 1112.627537</div>
+<div class="stat-card">Python ceiling: 473.108417</div>
+<div class="stat-card">English ceiling: 907.357503</div>
+
+<h2>1. The Problem</h2>
+<p>Design an L-system (axiom + production rules) that, after 5 iterations and turtle-graphics interpretation, produces a tree-like fractal with high visual complexity (branches × depth × coverage / total stroke length).</p>
+<p><strong>Eval signature:</strong> <code>{axiom: str, rules: dict[str,str], angle: float, iterations: int} -&gt; metric float</code></p>
+
+<h2>2. The DSL (AI-Designed)</h2>
+<details><summary>Click to view the full DSL specification</summary>
+<pre># L-System Grammar Design — DSL Language Specification
+`l_system_DSL_LANGUAGE_SPECIFICATION.md`
+
+**Banner:** PROVISIONAL
+**Domain:** l_system
+**Knob preset:** LITE
+**Iterations run:** 1
+**Consensus score:** 1.000 (target ≥0.5 for FINAL)
+**Coverage:** 0.075 (target ≥0.9 for FINAL)
+**Domain cost:** $0.81
+
+---
+
+# L-System DSL Specification
+
+## 1. OVERVIEW
+
+This DSL enables declarative specification of L-systems (Lindenmayer systems) for generating tree-like fractals via turtle graphics interpretation. It separates grammar definition (axiom, rewrite rules) from turtle semantics (drawing commands), supporting both deterministic and stochastic rule expansion. The DSL targets visual complexity optimization by exposing key parameters: branching angle, iteration depth, and length scaling. Programs compile to a `lsystem` Python function that returns a complete specification dictionary for rendering.
+
+## 2. OPERATORS
+
+| Name | Args | Semantics | Example |
+|------|------|-----------|---------|
+| `AXIOM` | `(str)` | Set initial string for rewriting | `AXIOM(&quot;X&quot;)` |
+| `RULE` | `(sym, exp)` | Deterministic rewrite: sym → exp | `RULE(&quot;F&quot;, &quot;FF&quot;)` |
+| `STOCH` | `(sym, [(p,exp), ...])` | Probabilistic rule with weighted choices | `STOCH(&quot;X&quot;, [(0.6,&quot;F[+X][-X]&quot;), (0.4,&quot;F[+X]&quot;)])` |
+| `ANGLE` | `(deg)` | Set turtle turn angle in degrees | `ANGLE(25.7)` |
+| `ITER` | `(n)` | Set iteration count (1-8) | `ITER(5)` |
+| `SCALE` | `(factor)` | Length reduction per branch depth | `SCALE(0.85)` |
+| `FORWARD` | `(sym)` | Register symbol as draw-forward | `FORWARD(&quot;F&quot;)` |
+| `SKIP` | `(sym)` | Register symbol as no-draw (structural) | `SKIP(&quot;X&quot;)` |
+| `MOVE` | `(sym)` | Register symbol as move without drawing | `MOVE(&quot;G&quot;)` |
+| `TURN` | `(sym, dir)` | Map symbol to turn direction (L/R) | `TURN(&quot;+&quot;, R)` |
+| `BRANCH` | `(push, pop)` | Define branch stack delimiters | `BRANCH(&quot;[&quot;, &quot;]&quot;)` |
+| `SEED` | `(n)` | RNG seed for stochastic reproducibility | `SEED(42)` |
+
+## 3. GRAMMAR
+
+Programs follow this structure: **header** → **rules** → **turtle mappings**
+
+```
+AXIOM(&quot;X&quot;)
+ANGLE(25)
+ITER(5)
+SCALE(0.85)
+SEED(123)
+
+RULE(&quot;F&quot;, &quot;FF&quot;)
+STOCH(&quot;X&quot;, [(0.5, &quot;F[+X][-X]FX&quot;), (0.5, &quot;F[-X]+X&quot;)])
+
+FORWARD(&quot;F&quot;)
+SKIP(&quot;X&quot;)
+TURN(&quot;+&quot;, R)
+TURN(&quot;-&quot;, L)
+BRANCH(&quot;[&quot;, &quot;]&quot;)
+```
+
+**Symbol alphabet**: Use uppercase letters for rewritable symbols. Reserved: `F`=forward, `G`=move, `+`=right turn, `-`=left turn, `[`=push state, `]`=pop state.
+
+**Stochastic rules**: Probabilities should sum to 1.0. Multiple `STOCH` entries for same symbol are combined.
+
+**Defaults**: If `FORWARD(&quot;F&quot;)` is omitted, `F` draws by default. If `BRANCH` is omitted, `[` and `]` are used.
+
+## 4. COMPILATION TARGET
+
+The DSL compiles to a Python function:
+
+```python
+def lsystem() -&gt; dict:
+    return {
+        &quot;axiom&quot;: str,           # Initial string
+        &quot;rules&quot;: dict,          # {sym: expansion} or {sym: [(prob, exp), ...]}
+        &quot;angle&quot;: float,         # Turn angle in degrees
+        &quot;iterations&quot;: int,      # Expansion count
+        &quot;scale&quot;: float,         # Length scale factor (default 1.0)
+        &quot;seed&quot;: int | None,     # RNG seed for stochastic rules
+        &quot;forward&quot;: set,         # Symbols that draw forward
+        &quot;skip&quot;: set,            # Symbols with no turtle action
+        &quot;move&quot;: set             # Symbols that move without drawing
+    }
+```
+
+The returned dictionary fully specifies the L-system for a turtle graphics renderer.
+
+## 5. EXAMPLE PROGRAMS
+
+**Example 1: Deterministic Asymmetric Tree** (maximizes depth × branches via unbalanced expansion)
+```
+AXIOM(&quot;X&quot;)
+ANGLE(22.5)
+ITER(5)
+SCALE(0.8)
+RULE(&quot;X&quot;, &quot;F[+X]F[-X]+X&quot;)
+RULE(&quot;F&quot;, &quot;FF&quot;)
+FORWARD(&quot;F&quot;)
+SKIP(&quot;X&quot;)
+BRANCH(&quot;[&quot;, &quot;]&quot;)
+```
+
+**Example 2: Stochastic Organic Plant** (maximizes coverage via probabilistic variation)
+```
+AXIOM(&quot;X&quot;)
+ANGLE(25)
+ITER(5)
+SCALE(0.85)
+SEED(42)
+STOCH(&quot;X&quot;, [(0.4, &quot;F[+X][-X]FX&quot;), (0.35, &quot;F[-X]+X&quot;), (0.25, &quot;F[+X]-X&quot;)])
+RULE(&quot;F&quot;, &quot;FF&quot;)
+FORWARD(&quot;F&quot;)
+SKIP(&quot;X&quot;)
+TURN(&quot;+&quot;, R)
+TURN(&quot;-&quot;, L)
+BRANCH(&quot;[&quot;, &quot;]&quot;)
+```
+</pre>
+</details>
+
+<h2>3. Three-Arm Comparison</h2>
+<div class="chart-container"><canvas id="convergenceChart"></canvas></div>
+
+<h3>Stats Table</h3>
+<table><thead><tr><th>Arm</th><th>Ceiling</th><th>Total Cost ($)</th><th>Crash Rate</th><th>Kept Ideas</th><th>Convergence 95%</th></tr></thead><tbody>
+<tr><td class='arm-dsl winner'>dsl</td><td>1112.627537</td><td>1.667865</td><td>0.0</td><td>9</td><td>1</td></tr>
+<tr><td class='arm-python '>python</td><td>473.108417</td><td>2.309925</td><td>0.8</td><td>3</td><td>4</td></tr>
+<tr><td class='arm-english '>english</td><td>907.357503</td><td>1.09833</td><td>0.05</td><td>7</td><td>16</td></tr>
+</tbody></table>
+
+<h2>4. Best Submissions</h2>
+<h3 class='arm-dsl'>DSL arm — best submission</h3><pre>(code not captured)</pre>
+<h3 class='arm-python'>PYTHON arm — best submission</h3><pre>(code not captured)</pre>
+<h3 class='arm-english'>ENGLISH arm — best submission</h3><pre>(code not captured)</pre>
+
+<h2>5. Raw Data</h2>
+<p>Full per-iteration data is available in this repo's source TSV files. Browse:</p>
+<ul>
+  <li><a href="./arm_dsl_results.tsv">DSL arm results</a></li>
+  <li><a href="./arm_python_results.tsv">Python arm results</a></li>
+  <li><a href="./arm_english_results.tsv">English arm results</a></li>
+  <li><a href="./comparison.tsv">Comparison stats</a></li>
+</ul>
+
+<div class="footer">
+<p>Generated by DSLBENCH-1 on 2026-05-24 20:17 UTC. Mission: H1 (does the v2 playbook produce
+usable DSLs?) and H2 (do AI-designed DSLs beat raw Python/English?). See the parent
+repo for the catalog and KEY_FINDINGS.</p>
+<p>Banner key: <strong>FINAL</strong> = consensus ≥ 0.5 AND coverage ≥ 0.9;
+<strong>PROVISIONAL</strong> = consensus ≥ 0.33 OR coverage ≥ 0.6; <strong>DRAFT</strong> otherwise.</p>
+</div>
+
+</div>
+
+<script>
+const ctx = document.getElementById('convergenceChart').getContext('2d');
+const direction = "maximize";
+const data = {"labels": [1, 2, 3, 4, 5], "datasets": [{"label": "DSL", "data": [707.88879, 874.432194, 914.474852, 955.252741, 955.252741], "borderColor": "#f78166", "backgroundColor": "rgba(247,129,102,0.1)", "tension": 0.2}, {"label": "Python", "data": [null, 292.268693, 292.268693, 382.688555, 412.828509], "borderColor": "#58a6ff", "backgroundColor": "rgba(88,166,255,0.1)", "tension": 0.2}, {"label": "English", "data": [446.040895, 446.040895, 566.777996, 566.777996, 566.777996], "borderColor": "#56d364", "backgroundColor": "rgba(86,211,100,0.1)", "tension": 0.2}]};
+new Chart(ctx, {
+  type: 'line',
+  data: data,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#c9d1d9' } },
+      title: { display: true, text: 'Best-so-far metric vs iteration (per arm, averaged across agents)', color: '#c9d1d9' },
+    },
+    scales: {
+      x: { title: { display: true, text: 'Iteration', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+      y: { title: { display: true, text: 'Best metric so far', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+    }
+  }
+});
+</script>
+
+</body>
+</html>

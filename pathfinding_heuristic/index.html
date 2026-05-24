@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A* Pathfinding Heuristic Design — DSL Optimization Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --accent: #58a6ff;
+    --card: #161b22;
+    --border: #30363d;
+    --dsl: #f78166;
+    --python: #58a6ff;
+    --english: #56d364;
+  }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1, h2, h3 { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h1 { font-size: 2.0em; } h2 { font-size: 1.5em; margin-top: 36px; }
+  pre { background: var(--card); padding: 14px; border-radius: 6px; overflow-x: auto;
+         border: 1px solid var(--border); font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .winner { font-weight: bold; color: var(--english); }
+  .banner { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold;
+             font-size: 0.85em; margin-left: 8px; }
+  .banner-final { background: #238636; color: white; }
+  .banner-provisional { background: #d29922; color: white; }
+  .banner-draft { background: #8b949e; color: white; }
+  .arm-dsl { color: var(--dsl); }
+  .arm-python { color: var(--python); }
+  .arm-english { color: var(--english); }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+             font-size: 0.85em; color: #8b949e; }
+  a { color: var(--accent); }
+  .stat-card { display: inline-block; padding: 10px 16px; margin: 4px;
+                background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .chart-container { position: relative; height: 400px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>A* Pathfinding Heuristic Design <span class="banner banner-draft">DRAFT</span></h1>
+<p><em>Reusable DSL Optimization Benchmark — domain: <code>pathfinding_heuristic</code>, wave: <code>A</code>, knob: <code>LITE</code></em></p>
+
+<div class="stat-card">Winner: <span class="arm-dsl">DSL</span></div>
+<div class="stat-card">Metric: nodes_expanded (minimize)</div>
+<div class="stat-card">DSL ceiling: 1680.0</div>
+<div class="stat-card">Python ceiling: 1743.0</div>
+<div class="stat-card">English ceiling: 2090.0</div>
+
+<h2>1. The Problem</h2>
+<p>Design a heuristic function h(cell, goal) for A* that minimizes total nodes expanded across 50 fixed 16×16 mazes.</p>
+<p><strong>Eval signature:</strong> <code>heuristic(x,y,gx,gy,maze) -&gt; float; metric = total nodes A* expands across the 50-maze suite</code></p>
+
+<h2>2. The DSL (AI-Designed)</h2>
+<details><summary>Click to view the full DSL specification</summary>
+<pre># A* Pathfinding Heuristic Design — DSL Language Specification
+`pathfinding_heuristic_DSL_LANGUAGE_SPECIFICATION.md`
+
+**Banner:** PROVISIONAL
+**Domain:** pathfinding_heuristic
+**Knob preset:** LITE
+**Iterations run:** 1
+**Consensus score:** 1.000 (target ≥0.5 for FINAL)
+**Coverage:** 0.080 (target ≥0.9 for FINAL)
+**Domain cost:** $0.87
+
+---
+
+# DSL Specification: A* Pathfinding Heuristic Composition Language
+
+## 1. OVERVIEW
+
+This DSL enables the composition of heuristic functions for A* pathfinding on 16×16 mazes. It provides distance primitives (manhattan, euclidean, chebyshev) as the foundation, augmented with maze-aware operators that capture local structure (wall density, openness, dead-ends) without expensive global computation. The design constrains heuristics to admissible-friendly compositions through weighted combinations, allowing optimization over continuous parameters while keeping evaluation O(r²) per cell where r is the maximum scan radius.
+
+## 2. OPERATORS
+
+| Name | Args | Semantics | Example |
+|------|------|-----------|---------|
+| `DIST` | `(type, weight)` | Distance to goal: `manhattan`\|`euclidean`\|`chebyshev`, scaled by weight | `DIST(manhattan, 1.0)` |
+| `WALL_PENALTY` | `(radius, decay)` | Sum of 1/d^decay for each wall within radius of current cell | `WALL_PENALTY(2, 1.5)` |
+| `OPENNESS` | `(radius)` | Count of free cells within radius, normalized to [0,1] | `OPENNESS(3)` |
+| `DEAD_END` | `(threshold)` | Returns 1.0 if cell has ≤threshold open neighbors, else 0.0 | `DEAD_END(1)` |
+| `GOAL_ALIGN` | `(weight)` | weight × cos(angle between cell-to-goal vector and best open direction) | `GOAL_ALIGN(0.2)` |
+| `TIE_BREAK` | `(scale)` | Tiny perturbation: scale × cross-product of path vectors (breaks symmetry) | `TIE_BREAK(0.001)` |
+| `CONST` | `(value)` | Constant float value | `CONST(0.5)` |
+| `ADD` | `(a, b)` | Sum of two terms | `ADD(DIST(...), WALL_PENALTY(...))` |
+| `MUL` | `(term, factor)` | Multiply term result by constant factor | `MUL(OPENNESS(2), -0.3)` |
+| `MAX` | `(a, b)` | Maximum of two terms | `MAX(DIST(manhattan,1), DIST(chebyshev,1))` |
+| `MIN` | `(a, b)` | Minimum of two terms | `MIN(a, b)` |
+| `COMBINE` | `(t1, t2, ...)` | Sum of all nested terms (variadic ADD) | `COMBINE(t1, t2, t3)` |
+
+## 3. GRAMMAR
+
+```
+heuristic  ::= expr
+expr       ::= DIST(disttype, NUM) | WALL_PENALTY(INT, NUM) | OPENNESS(INT)
+             | DEAD_END(INT) | GOAL_ALIGN(NUM) | TIE_BREAK(NUM) | CONST(NUM)
+             | ADD(expr, expr) | MUL(expr, NUM) | MAX(expr, expr) | MIN(expr, expr)
+             | COMBINE(expr, expr [, expr]*)
+disttype   ::= manhattan | euclidean | chebyshev
+NUM        ::= float literal (e.g., 1.0, 0.5, -0.2)
+INT        ::= positive integer (e.g., 1, 2, 3)
+```
+
+**Syntax notes:**
+- `COMBINE` accepts 2+ terms and sums them (syntactic sugar for nested `ADD`)
+- `MUL` always takes a term and a constant (not two terms)
+- Radius/threshold arguments are integers ≥1; weights/factors are floats
+- Negative weights in `MUL` create bonuses (subtract from heuristic)
+
+## 4. COMPILATION TARGET
+
+The DSL compiles to a Python function with this signature:
+
+```python
+def heuristic(cell: tuple[int, int], goal: tuple[int, int], maze: list[list[int]]) -&gt; float:
+    &quot;&quot;&quot;
+    Args:
+        cell: (row, col) of current position
+        goal: (row, col) of target position  
+        maze: 2D grid where 0=free, 1=wall
+    Returns:
+        Estimated cost from cell to goal (float, non-negative preferred)
+    &quot;&quot;&quot;
+```
+
+The maze is 16×16. Lower heuristic values indicate cells estimated closer to goal. For admissibility, the heuristic should not overestimate true shortest-path distance.
+
+## 5. EXAMPLE PROGRAMS
+
+**Anchor 1: Weighted Manhattan with Tie-Breaking**
+```
+COMBINE(
+  DIST(manhattan, 1.0),
+  TIE_BREAK(0.001)
+)
+```
+*Pure distance heuristic with symmetry breaking to reduce node expansion on uniform-cost paths.*
+
+**Anchor 2: Manhattan with Wall Awareness and Dead-End Penalty**
+```
+COMBINE(
+  DIST(manhattan, 1.0),
+  MUL(WALL_PENALTY(2, 1.0), 0.15),
+  MUL(DEAD_END(1), 2.0),
+  MUL(OPENNESS(2), -0.1)
+)
+```
+*Adds penalties for wall-adjacent cells and dead-ends, with a small bonus for open areas, guiding search away from problematic maze regions.*
+</pre>
+</details>
+
+<h2>3. Three-Arm Comparison</h2>
+<div class="chart-container"><canvas id="convergenceChart"></canvas></div>
+
+<h3>Stats Table</h3>
+<table><thead><tr><th>Arm</th><th>Ceiling</th><th>Total Cost ($)</th><th>Crash Rate</th><th>Kept Ideas</th><th>Convergence 95%</th></tr></thead><tbody>
+<tr><td class='arm-dsl winner'>dsl</td><td>1680.0</td><td>2.488095</td><td>0.0</td><td>11</td><td>4</td></tr>
+<tr><td class='arm-python '>python</td><td>1743.0</td><td>1.69542</td><td>0.0</td><td>10</td><td>1</td></tr>
+<tr><td class='arm-english '>english</td><td>2090.0</td><td>0.87807</td><td>0.0</td><td>9</td><td>2</td></tr>
+</tbody></table>
+
+<h2>4. Best Submissions</h2>
+<h3 class='arm-dsl'>DSL arm — best submission</h3><pre>(code not captured)</pre>
+<h3 class='arm-python'>PYTHON arm — best submission</h3><pre>(code not captured)</pre>
+<h3 class='arm-english'>ENGLISH arm — best submission</h3><pre>(code not captured)</pre>
+
+<h2>5. Raw Data</h2>
+<p>Full per-iteration data is available in this repo's source TSV files. Browse:</p>
+<ul>
+  <li><a href="./arm_dsl_results.tsv">DSL arm results</a></li>
+  <li><a href="./arm_python_results.tsv">Python arm results</a></li>
+  <li><a href="./arm_english_results.tsv">English arm results</a></li>
+  <li><a href="./comparison.tsv">Comparison stats</a></li>
+</ul>
+
+<div class="footer">
+<p>Generated by DSLBENCH-1 on 2026-05-24 20:17 UTC. Mission: H1 (does the v2 playbook produce
+usable DSLs?) and H2 (do AI-designed DSLs beat raw Python/English?). See the parent
+repo for the catalog and KEY_FINDINGS.</p>
+<p>Banner key: <strong>FINAL</strong> = consensus ≥ 0.5 AND coverage ≥ 0.9;
+<strong>PROVISIONAL</strong> = consensus ≥ 0.33 OR coverage ≥ 0.6; <strong>DRAFT</strong> otherwise.</p>
+</div>
+
+</div>
+
+<script>
+const ctx = document.getElementById('convergenceChart').getContext('2d');
+const direction = "minimize";
+const data = {"labels": [1, 2, 3, 4, 5], "datasets": [{"label": "DSL", "data": [3877.5, 3808.75, 3667.75, 3005.5, 3005.5], "borderColor": "#f78166", "backgroundColor": "rgba(247,129,102,0.1)", "tension": 0.2}, {"label": "Python", "data": [5743.5, 4101.75, 2511.0, 2268.25, 2268.25], "borderColor": "#58a6ff", "backgroundColor": "rgba(88,166,255,0.1)", "tension": 0.2}, {"label": "English", "data": [7036.5, 3418.5, 3391.25, 3391.25, 3391.25], "borderColor": "#56d364", "backgroundColor": "rgba(86,211,100,0.1)", "tension": 0.2}]};
+new Chart(ctx, {
+  type: 'line',
+  data: data,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#c9d1d9' } },
+      title: { display: true, text: 'Best-so-far metric vs iteration (per arm, averaged across agents)', color: '#c9d1d9' },
+    },
+    scales: {
+      x: { title: { display: true, text: 'Iteration', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+      y: { title: { display: true, text: 'Best metric so far', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+    }
+  }
+});
+</script>
+
+</body>
+</html>

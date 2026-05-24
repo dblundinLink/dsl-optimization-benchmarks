@@ -1,0 +1,4 @@
+arm	n_attempts	n_ok	crash_rate	ceiling	iters_to_ceiling	cost_at_ceiling	cost_total	convergence_iter_95pct	cost_to_90pct	n_distinct_kept
+dsl	20	20	0.0	1680.0	16	1.99194	2.488095	4	0.4968	11
+python	20	20	0.0	1743.0	1	0.09	1.69542	1	0.09	10
+english	20	20	0.0	2090.0	2	0.08079	0.87807	2	0.08079	9

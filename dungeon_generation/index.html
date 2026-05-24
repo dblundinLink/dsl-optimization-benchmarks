@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procedural Dungeon Generation — DSL Optimization Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --accent: #58a6ff;
+    --card: #161b22;
+    --border: #30363d;
+    --dsl: #f78166;
+    --python: #58a6ff;
+    --english: #56d364;
+  }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1, h2, h3 { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h1 { font-size: 2.0em; } h2 { font-size: 1.5em; margin-top: 36px; }
+  pre { background: var(--card); padding: 14px; border-radius: 6px; overflow-x: auto;
+         border: 1px solid var(--border); font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .winner { font-weight: bold; color: var(--english); }
+  .banner { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold;
+             font-size: 0.85em; margin-left: 8px; }
+  .banner-final { background: #238636; color: white; }
+  .banner-provisional { background: #d29922; color: white; }
+  .banner-draft { background: #8b949e; color: white; }
+  .arm-dsl { color: var(--dsl); }
+  .arm-python { color: var(--python); }
+  .arm-english { color: var(--english); }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+             font-size: 0.85em; color: #8b949e; }
+  a { color: var(--accent); }
+  .stat-card { display: inline-block; padding: 10px 16px; margin: 4px;
+                background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .chart-container { position: relative; height: 400px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Procedural Dungeon Generation <span class="banner banner-draft">DRAFT</span></h1>
+<p><em>Reusable DSL Optimization Benchmark — domain: <code>dungeon_generation</code>, wave: <code>B</code>, knob: <code>LITE-Default</code></em></p>
+
+<div class="stat-card">Winner: <span class="arm-english">ENGLISH</span></div>
+<div class="stat-card">Metric: playability_score (maximize)</div>
+<div class="stat-card">DSL ceiling: N/A</div>
+<div class="stat-card">Python ceiling: N/A</div>
+<div class="stat-card">English ceiling: 2.654679</div>
+
+<h2>1. The Problem</h2>
+<p>Generate a 32×32 dungeon (rooms + corridors) maximizing playability_score = reachability + room_size_stddev + corridor_turns + room_density.</p>
+<p><strong>Eval signature:</strong> <code>function returning a 32x32 int grid (0=floor, 1=wall) -&gt; playability_score float</code></p>
+
+<h2>2. The DSL (AI-Designed)</h2>
+<details><summary>Click to view the full DSL specification</summary>
+<pre># Procedural Dungeon Generation — DSL Language Specification
+`dungeon_generation_DSL_LANGUAGE_SPECIFICATION.md`
+
+**Banner:** DRAFT
+**Domain:** dungeon_generation
+**Knob preset:** LITE-Default
+**Iterations run:** 2
+**Consensus score:** 0.000 (target ≥0.5 for FINAL)
+**Coverage:** 0.065 (target ≥0.9 for FINAL)
+**Domain cost:** $2.87
+
+---
+
+# DungeonScript DSL Specification
+
+## 1. OVERVIEW
+
+DungeonScript is a declarative domain-specific language for procedural dungeon generation on a 32×32 grid. It enforces a **partition-then-populate-then-connect** pipeline that prevents invalid topologies while enabling diverse generation strategies—from structured BSP room layouts to organic cellular automata caves. The DSL exposes continuous parameters (twistiness, density) and range-based sizing to support automated optimization of the playability_score metric (reachability + room_size_stddev + corridor_turns + room_density).
+
+## 2. OPERATORS
+
+| Name | Args | Semantics | Example |
+|------|------|-----------|---------|
+| `INIT` | `fill` | Initialize 32×32 grid; 0=floor, 1=wall | `INIT(1)` |
+| `PARTITION` | `strategy, depth` | Subdivide space; strategy ∈ {bsp, grid, random} | `PARTITION(bsp, 4)` |
+| `ROOM` | `w_range, h_range, placement` | Carve room in partition; placement ∈ {partition, random, center} | `ROOM(4-8, 4-8, partition)` |
+| `CORRIDOR` | `mode, twistiness` | Connect rooms; mode ∈ {mst, nearest, sequential}; twist 0.0-1.0 | `CORRIDOR(mst, 0.3)` |
+| `WALK` | `steps, width` | Drunkard&#x27;s walk carving from center; width 1-3 | `WALK(200, 2)` |
+| `CELLULAR` | `iterations, birth, survive` | Cellular automata smoothing pass | `CELLULAR(3, 5, 4)` |
+| `NOISE` | `density` | Scatter floor tiles randomly; density 0.0-1.0 | `NOISE(0.45)` |
+| `DOOR` | `style` | Place doors; style ∈ {single, random, none} | `DOOR(single)` |
+| `CONSTRAINT` | `key, min, max` | Set bounds: rooms, room_size, corridor_length | `CONSTRAINT(rooms, 5, 12)` |
+| `POSTPROCESS` | `op` | Cleanup; op ∈ {connect, smooth, remove_deadends} | `POSTPROCESS(connect)` |
+| `REPEAT` | `n, operator` | Execute operator n times with variation | `REPEAT(6, ROOM(3-6, 3-6, random))` |
+| `FILL` | `region, value` | Set region to wall/floor; region ∈ {all, border} | `FILL(border, 1)` |
+
+## 3. GRAMMAR
+
+```
+program     ::= &quot;generate:&quot; statement+
+statement   ::= operator | repeat | constraint
+operator    ::= INIT(int) | PARTITION(strategy, int) | ROOM(range, range, placement)
+              | CORRIDOR(mode, float) | WALK(int, int) | CELLULAR(int, int, int)
+              | NOISE(float) | DOOR(style) | POSTPROCESS(op) | FILL(region, int)
+repeat      ::= REPEAT(int, operator)
+constraint  ::= CONSTRAINT(key, int, int)
+range       ::= int &quot;-&quot; int | int
+strategy    ::= bsp | grid | random
+placement   ::= partition | random | center
+mode        ::= mst | nearest | sequential
+style       ::= single | random | none
+op          ::= connect | smooth | remove_deadends
+```
+
+**Ordering Convention**: INIT → CONSTRAINT → (PARTITION|NOISE|WALK) → ROOM → CORRIDOR → DOOR → POSTPROCESS
+
+## 4. COMPILATION TARGET
+
+The DSL compiles to a Python function with signature:
+
+```python
+def generate(width: int = 32, height: int = 32, seed: int | None = None) -&gt; np.ndarray:
+    &quot;&quot;&quot;Returns a 2D numpy array of shape (height, width) with 0=floor, 1=wall.&quot;&quot;&quot;
+```
+
+The compiler translates each operator to imperative grid mutations. `POSTPROCESS(connect)` guarantees all floor tiles are reachable. The function must be deterministic given a seed.
+
+## 5. EXAMPLE PROGRAMS
+
+**BSP Rooms with MST Corridors** (structured, high room_density):
+```
+generate:
+  INIT(1)
+  CONSTRAINT(rooms, 6, 12)
+  PARTITION(bsp, 4)
+  ROOM(5-9, 4-8, partition)
+  CORRIDOR(mst, 0.4)
+  DOOR(single)
+  POSTPROCESS(smooth)
+  POSTPROCESS(connect)
+```
+
+**Cellular Automata Cave** (organic, variable room_size_stddev):
+```
+generate:
+  INIT(1)
+  NOISE(0.45)
+  CELLULAR(4, 5, 4)
+  REPEAT(3, WALK(100, 2))
+  POSTPROCESS(remove_deadends)
+  POSTPROCESS(connect)
+  CONSTRAINT(rooms, 1, 8)
+```
+</pre>
+</details>
+
+<h2>3. Three-Arm Comparison</h2>
+<div class="chart-container"><canvas id="convergenceChart"></canvas></div>
+
+<h3>Stats Table</h3>
+<table><thead><tr><th>Arm</th><th>Ceiling</th><th>Total Cost ($)</th><th>Crash Rate</th><th>Kept Ideas</th><th>Convergence 95%</th></tr></thead><tbody>
+<tr><td class='arm-dsl '>dsl</td><td></td><td>4.355159999999999</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-python '>python</td><td></td><td>3.500774999999999</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-english winner'>english</td><td>2.654679</td><td>3.439335</td><td>0.2667</td><td>12</td><td>20</td></tr>
+</tbody></table>
+
+<h2>4. Best Submissions</h2>
+<h3 class='arm-dsl'>DSL arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-python'>PYTHON arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-english'>ENGLISH arm — best submission</h3><pre>(code not captured)</pre>
+
+<h2>5. Raw Data</h2>
+<p>Full per-iteration data is available in this repo's source TSV files. Browse:</p>
+<ul>
+  <li><a href="./arm_dsl_results.tsv">DSL arm results</a></li>
+  <li><a href="./arm_python_results.tsv">Python arm results</a></li>
+  <li><a href="./arm_english_results.tsv">English arm results</a></li>
+  <li><a href="./comparison.tsv">Comparison stats</a></li>
+</ul>
+
+<div class="footer">
+<p>Generated by DSLBENCH-1 on 2026-05-24 20:17 UTC. Mission: H1 (does the v2 playbook produce
+usable DSLs?) and H2 (do AI-designed DSLs beat raw Python/English?). See the parent
+repo for the catalog and KEY_FINDINGS.</p>
+<p>Banner key: <strong>FINAL</strong> = consensus ≥ 0.5 AND coverage ≥ 0.9;
+<strong>PROVISIONAL</strong> = consensus ≥ 0.33 OR coverage ≥ 0.6; <strong>DRAFT</strong> otherwise.</p>
+</div>
+
+</div>
+
+<script>
+const ctx = document.getElementById('convergenceChart').getContext('2d');
+const direction = "maximize";
+const data = {"labels": [1, 2, 3, 4, 5, 6], "datasets": [{"label": "DSL", "data": [null, null, null, null, null, null], "borderColor": "#f78166", "backgroundColor": "rgba(247,129,102,0.1)", "tension": 0.2}, {"label": "Python", "data": [null, null, null, null, null, null], "borderColor": "#58a6ff", "backgroundColor": "rgba(88,166,255,0.1)", "tension": 0.2}, {"label": "English", "data": [2.545902, 2.56437, 2.578574, 2.581142, 2.596008, 2.603222], "borderColor": "#56d364", "backgroundColor": "rgba(86,211,100,0.1)", "tension": 0.2}]};
+new Chart(ctx, {
+  type: 'line',
+  data: data,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#c9d1d9' } },
+      title: { display: true, text: 'Best-so-far metric vs iteration (per arm, averaged across agents)', color: '#c9d1d9' },
+    },
+    scales: {
+      x: { title: { display: true, text: 'Iteration', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+      y: { title: { display: true, text: 'Best metric so far', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+    }
+  }
+});
+</script>
+
+</body>
+</html>

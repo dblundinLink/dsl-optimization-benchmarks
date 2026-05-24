@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MNIST STE Training — DSL Optimization Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --accent: #58a6ff;
+    --card: #161b22;
+    --border: #30363d;
+    --dsl: #f78166;
+    --python: #58a6ff;
+    --english: #56d364;
+  }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1, h2, h3 { color: var(--fg); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h1 { font-size: 2.0em; } h2 { font-size: 1.5em; margin-top: 36px; }
+  pre { background: var(--card); padding: 14px; border-radius: 6px; overflow-x: auto;
+         border: 1px solid var(--border); font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .winner { font-weight: bold; color: var(--english); }
+  .banner { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold;
+             font-size: 0.85em; margin-left: 8px; }
+  .banner-final { background: #238636; color: white; }
+  .banner-provisional { background: #d29922; color: white; }
+  .banner-draft { background: #8b949e; color: white; }
+  .arm-dsl { color: var(--dsl); }
+  .arm-python { color: var(--python); }
+  .arm-english { color: var(--english); }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+             font-size: 0.85em; color: #8b949e; }
+  a { color: var(--accent); }
+  .stat-card { display: inline-block; padding: 10px 16px; margin: 4px;
+                background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .chart-container { position: relative; height: 400px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>MNIST STE Training <span class="banner banner-draft">DRAFT</span></h1>
+<p><em>Reusable DSL Optimization Benchmark — domain: <code>mnist_ste</code>, wave: <code>B</code>, knob: <code>FULL+</code></em></p>
+
+<div class="stat-card">Winner: <span class="arm-none">NONE</span></div>
+<div class="stat-card">Metric: val_cls_err (minimize)</div>
+<div class="stat-card">DSL ceiling: N/A</div>
+<div class="stat-card">Python ceiling: N/A</div>
+<div class="stat-card">English ceiling: N/A</div>
+
+<h2>1. The Problem</h2>
+<p>Design a complete training procedure for a 2-layer MLP with binary weights {-1,+1} and binary activations sign(), trained via straight-through estimator on 500 MNIST examples for 200 update steps.</p>
+<p><strong>Eval signature:</strong> <code>train_fn(X_train, y_train, X_val, y_val, n_steps) -&gt; trained_model -&gt; val_cls_err float</code></p>
+
+<h2>2. The DSL (AI-Designed)</h2>
+<details><summary>Click to view the full DSL specification</summary>
+<pre># MNIST STE Training — DSL Language Specification
+`mnist_ste_DSL_LANGUAGE_SPECIFICATION.md`
+
+**Banner:** DRAFT
+**Domain:** mnist_ste
+**Knob preset:** FULL+
+**Iterations run:** 2
+**Consensus score:** 0.000 (target ≥0.5 for FINAL)
+**Coverage:** 0.050 (target ≥0.9 for FINAL)
+**Domain cost:** $4.85
+
+---
+
+# DSL Specification: Binary Neural Network STE Training
+
+## 1. OVERVIEW
+
+This DSL defines training procedures for 2-layer MLPs with binary weights {-1,+1} and binary activations using the straight-through estimator (STE). It separates weight quantization from gradient estimation, enabling systematic exploration of STE variants (identity vs clipped), learning rate schedules, and optimizer configurations. The DSL compiles to a Python `train` function that executes 200 update steps on 500 MNIST examples and returns validation classification error.
+
+## 2. OPERATORS
+
+| Name | Args | Semantics | Example |
+|------|------|-----------|---------|
+| `LAYER` | `(in, out, init)` | Define dense layer with dimensions and weight init (xavier\|kaiming\|uniform) | `LAYER(784, 128, xavier)` |
+| `QUANTIZE_W` | `(method)` | Binarize weights: `sign` → deterministic, `stochastic` → probabilistic | `QUANTIZE_W(sign)` |
+| `QUANTIZE_A` | `(method)` | Binarize activations: `sign` → binary, `none` → identity (for output layer) | `QUANTIZE_A(sign)` |
+| `STE_GRAD` | `(window)` | STE backward pass: `inf` → identity gradient, float → clip gradient to [-w,w] | `STE_GRAD(1.0)` |
+| `LOSS` | `(type)` | Loss function: `ce` (cross-entropy), `mse` | `LOSS(ce)` |
+| `UPDATE` | `(rule, lr, momentum?)` | Weight update: `sgd`, `adam`; optional momentum for SGD | `UPDATE(sgd, 0.1, 0.9)` |
+| `SCHEDULE` | `(fn, param?)` | LR schedule: `const`, `cosine`, `step_decay(factor)` | `SCHEDULE(cosine)` |
+| `CLIP_W` | `(min, max)` | Clamp latent weights to range after update | `CLIP_W(-1, 1)` |
+| `FORWARD` | `(layers)` | Execute forward pass through layer sequence | `FORWARD([L1, L2])` |
+| `TRAIN` | `(steps, batch)` | Training loop specification | `TRAIN(200, 50)` |
+
+## 3. GRAMMAR
+
+```
+program     := layer_def+ training_config
+layer_def   := ID &quot;=&quot; LAYER(int, int, init) &quot;&gt;&gt;&quot; QUANTIZE_W(method) &quot;&gt;&gt;&quot; QUANTIZE_A(method)
+training_config := network loss_spec ste_spec optim_spec train_spec
+network     := FORWARD([layer_id, ...])
+loss_spec   := LOSS(ce | mse)
+ste_spec    := STE_GRAD(float | inf)
+optim_spec  := UPDATE(rule, float, float?) [&quot;&gt;&gt;&quot; SCHEDULE(fn, param?)] [&quot;&gt;&gt;&quot; CLIP_W(float, float)]
+train_spec  := TRAIN(int, int)
+```
+
+**Key constraints:** Layer 1 uses `QUANTIZE_A(sign)`, Layer 2 uses `QUANTIZE_A(none)` for logit output. The `&gt;&gt;` operator chains configuration. All programs must specify exactly 2 layers with input 784 and final output 10.
+
+## 4. COMPILATION TARGET
+
+The DSL compiles to a Python function with signature:
+
+```python
+def train(train_images, train_labels, val_images, val_labels) -&gt; float:
+    # Returns: validation classification error (float between 0 and 1)
+```
+
+**Inputs:** `train_images` (500×784 float32), `train_labels` (500 int), `val_images`, `val_labels` (validation set). **Output:** Classification error on validation set after training completes.
+
+## 5. EXAMPLE PROGRAMS
+
+**Strategy A: Vanilla STE with Identity Gradient**
+```
+L1 = LAYER(784, 128, xavier) &gt;&gt; QUANTIZE_W(sign) &gt;&gt; QUANTIZE_A(sign)
+L2 = LAYER(128, 10, xavier) &gt;&gt; QUANTIZE_W(sign) &gt;&gt; QUANTIZE_A(none)
+FORWARD([L1, L2])
+LOSS(ce)
+STE_GRAD(inf)
+UPDATE(sgd, 0.5) &gt;&gt; CLIP_W(-1, 1)
+TRAIN(200, 50)
+```
+
+**Strategy B: Clipped STE with Cosine Schedule and Momentum**
+```
+L1 = LAYER(784, 128, kaiming) &gt;&gt; QUANTIZE_W(sign) &gt;&gt; QUANTIZE_A(sign)
+L2 = LAYER(128, 10, kaiming) &gt;&gt; QUANTIZE_W(sign) &gt;&gt; QUANTIZE_A(none)
+FORWARD([L1, L2])
+LOSS(ce)
+STE_GRAD(1.0)
+UPDATE(sgd, 0.1, 0.9) &gt;&gt; SCHEDULE(cosine) &gt;&gt; CLIP_W(-1, 1)
+TRAIN(200, 50)
+```
+</pre>
+</details>
+
+<h2>3. Three-Arm Comparison</h2>
+<div class="chart-container"><canvas id="convergenceChart"></canvas></div>
+
+<h3>Stats Table</h3>
+<table><thead><tr><th>Arm</th><th>Ceiling</th><th>Total Cost ($)</th><th>Crash Rate</th><th>Kept Ideas</th><th>Convergence 95%</th></tr></thead><tbody>
+<tr><td class='arm-dsl '>dsl</td><td></td><td>3.7087049999999993</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-python '>python</td><td></td><td>3.508425</td><td>1.0</td><td>0</td><td></td></tr>
+<tr><td class='arm-english '>english</td><td></td><td>3.2950950000000003</td><td>1.0</td><td>0</td><td></td></tr>
+</tbody></table>
+
+<h2>4. Best Submissions</h2>
+<h3 class='arm-dsl'>DSL arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-python'>PYTHON arm — best submission</h3><pre>(no successful submission)</pre>
+<h3 class='arm-english'>ENGLISH arm — best submission</h3><pre>(no successful submission)</pre>
+
+<h2>5. Raw Data</h2>
+<p>Full per-iteration data is available in this repo's source TSV files. Browse:</p>
+<ul>
+  <li><a href="./arm_dsl_results.tsv">DSL arm results</a></li>
+  <li><a href="./arm_python_results.tsv">Python arm results</a></li>
+  <li><a href="./arm_english_results.tsv">English arm results</a></li>
+  <li><a href="./comparison.tsv">Comparison stats</a></li>
+</ul>
+
+<div class="footer">
+<p>Generated by DSLBENCH-1 on 2026-05-24 20:17 UTC. Mission: H1 (does the v2 playbook produce
+usable DSLs?) and H2 (do AI-designed DSLs beat raw Python/English?). See the parent
+repo for the catalog and KEY_FINDINGS.</p>
+<p>Banner key: <strong>FINAL</strong> = consensus ≥ 0.5 AND coverage ≥ 0.9;
+<strong>PROVISIONAL</strong> = consensus ≥ 0.33 OR coverage ≥ 0.6; <strong>DRAFT</strong> otherwise.</p>
+</div>
+
+</div>
+
+<script>
+const ctx = document.getElementById('convergenceChart').getContext('2d');
+const direction = "minimize";
+const data = {"labels": [1, 2, 3, 4, 5, 6], "datasets": [{"label": "DSL", "data": [null, null, null, null, null, null], "borderColor": "#f78166", "backgroundColor": "rgba(247,129,102,0.1)", "tension": 0.2}, {"label": "Python", "data": [null, null, null, null, null, null], "borderColor": "#58a6ff", "backgroundColor": "rgba(88,166,255,0.1)", "tension": 0.2}, {"label": "English", "data": [null, null, null, null, null, null], "borderColor": "#56d364", "backgroundColor": "rgba(86,211,100,0.1)", "tension": 0.2}]};
+new Chart(ctx, {
+  type: 'line',
+  data: data,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#c9d1d9' } },
+      title: { display: true, text: 'Best-so-far metric vs iteration (per arm, averaged across agents)', color: '#c9d1d9' },
+    },
+    scales: {
+      x: { title: { display: true, text: 'Iteration', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+      y: { title: { display: true, text: 'Best metric so far', color: '#c9d1d9' },
+            ticks: { color: '#c9d1d9' }, grid: { color: '#30363d' } },
+    }
+  }
+});
+</script>
+
+</body>
+</html>
